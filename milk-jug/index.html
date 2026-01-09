@@ -156,6 +156,20 @@
             #target-line-marker::after { display: none; } /* Hide label on thin phones */
         }
 
+        /* 5 gallon line on 7 gallon jar */
+        #target-line-marker-7gal {
+            position: absolute;
+            /* 5 gallons out of 7 is roughly 71.43% from the bottom */
+            bottom: calc(71.43%); 
+            width: 100%;
+            height: 4px;
+            background-color: var(--target-line);
+            z-index: 10;
+            opacity: 0.8;
+            pointer-events: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
         .jar-label {
             margin-top: 10px;
             font-weight: bold;
@@ -167,23 +181,67 @@
             font-size: 0.9em;
         }
 
-        #reset-btn {
+        .controls {
+            display: flex;
+            gap: 15px;
             margin-top: 30px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
             padding: 10px 30px;
             font-size: 1.2em;
             font-family: inherit;
-            background-color: #FF5722;
             color: white;
             border: none;
             border-radius: 30px;
             cursor: pointer;
-            box-shadow: 0 4px #E64A19;
             transition: all 0.1s;
-            margin-bottom: 30px;
+        }
+
+        #reset-btn {
+            background-color: #FF5722;
+            box-shadow: 0 4px #E64A19;
         }
         #reset-btn:active {
             box-shadow: 0 2px #E64A19;
             transform: translateY(2px);
+        }
+
+        #undo-btn {
+            background-color: #2196F3;
+            box-shadow: 0 4px #1565C0;
+        }
+        #undo-btn:active {
+            box-shadow: 0 2px #1565C0;
+            transform: translateY(2px);
+        }
+        #undo-btn:disabled {
+            background-color: #CCCCCC;
+            box-shadow: 0 4px #999999;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            background-color: white;
+            padding: 10px 20px;
+            border-radius: 15px;
+            border: 3px solid var(--text-color);
+            min-width: 120px;
+            text-align: center;
         }
 
         /* Specific heights for visual scaling based on capacity */
@@ -195,7 +253,7 @@
 </head>
 <body>
 
-    <h1>🥛 The Milk Jug Puzzle 🥛</h1>
+    <h2>🥛 The Milk Jug Puzzle 🥛</h2>
 
     <div class="instructions">
         <p>Goal: Get exactly <span class="goal-highlight">5 Gallons</span> of milk into any jar!</p>
@@ -203,6 +261,15 @@
     </div>
 
     <div id="game-message">Tap a jar to start pouring!</div>
+
+    <div class="stats">
+        <div class="stat-item">
+            Steps: <span id="step-count">0</span>
+        </div>
+        <div class="stat-item">
+            Time: <span id="timer">0:00</span>
+        </div>
+    </div>
 
     <div class="jars-container">
         <div class="jar-wrapper" id="jar-0-container" onclick="handleJarClick(0)">
@@ -215,6 +282,7 @@
 
         <div class="jar-wrapper" id="jar-1-container" onclick="handleJarClick(1)">
             <div class="jar">
+                <div id="target-line-marker-7gal"></div>
                 <div class="liquid" id="liquid-1" style="height: 0%;"></div>
             </div>
             <div class="jar-label" id="label-1">0 / 7 Gal</div>
@@ -228,7 +296,10 @@
         </div>
     </div>
 
-    <button id="reset-btn" onclick="resetGame()">Reset Game 🔄</button>
+    <div class="controls">
+        <button id="undo-btn" onclick="undoLastMove()" disabled>Undo ↶</button>
+        <button id="reset-btn" onclick="resetGame()">Reset Game 🔄</button>
+    </div>
 
     <script>
         // --- Game Configuration & State ---
@@ -241,6 +312,13 @@
         // Track player interaction state
         let selectedSourceIndex = null;
         let gameWon = false;
+
+        // Game statistics
+        let stepCount = 0;
+        let moveHistory = [];
+        let timerInterval = null;
+        let elapsedSeconds = 0;
+        let gameStarted = false;
 
         // --- DOM Elements references ---
         const messageDisplay = document.getElementById('game-message');
@@ -259,6 +337,33 @@
             document.getElementById('label-1'),
             document.getElementById('label-2')
         ];
+        const stepCountDisplay = document.getElementById('step-count');
+        const timerDisplay = document.getElementById('timer');
+        const undoBtn = document.getElementById('undo-btn');
+
+        // --- Timer Functions ---
+        function startTimer() {
+            if (!gameStarted) {
+                gameStarted = true;
+                timerInterval = setInterval(() => {
+                    elapsedSeconds++;
+                    updateTimerDisplay();
+                }, 1000);
+            }
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(elapsedSeconds / 60);
+            const seconds = elapsedSeconds % 60;
+            timerDisplay.innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
 
         // --- Core Game Logic ---
 
@@ -301,10 +406,22 @@
                      return;
                 }
 
+                // Start timer on first move
+                if (!gameStarted) {
+                    startTimer();
+                }
+
                 // Perform the pour
                 const amount = calculatePour(selectedSourceIndex, index);
+                const previousState = [...gameState];
                 gameState[selectedSourceIndex] -= amount;
                 gameState[index] += amount;
+                
+                // Record move in history for undo
+                moveHistory.push(previousState);
+                stepCount++;
+                stepCountDisplay.innerText = stepCount;
+                undoBtn.disabled = false;
                 
                 resetSelection();
                 updateView();
@@ -314,6 +431,22 @@
                      showMessage(`Poured ${amount} gallons. What's next?`);
                 }
             }
+        }
+
+        // --- Undo Function ---
+        function undoLastMove() {
+            if (moveHistory.length === 0) return;
+
+            gameState = moveHistory.pop();
+            stepCount--;
+            stepCountDisplay.innerText = stepCount;
+            
+            if (moveHistory.length === 0) {
+                undoBtn.disabled = true;
+            }
+
+            updateView();
+            showMessage("Move undone. What's next?");
         }
 
         // --- Helper Functions ---
@@ -329,7 +462,8 @@
             // Check if any jar currently holds exactly the target amount
             if (gameState.includes(targetGoal)) {
                 gameWon = true;
-                showMessage("🎉 YOU DID IT! You measured exactly 5 Gallons! 🎉");
+                stopTimer();
+                showMessage(`🎉 YOU DID IT! You measured exactly 5 Gallons in ${stepCount} steps! 🎉`);
                 document.body.style.backgroundColor = "#d4edda"; // Success green bg
                 confettiEffect(); // Optional visual flair
             }
@@ -356,9 +490,18 @@
             gameState = [11, 0, 0];
             selectedSourceIndex = null;
             gameWon = false;
+            stepCount = 0;
+            moveHistory = [];
+            elapsedSeconds = 0;
+            gameStarted = false;
+            stopTimer();
+            
             document.body.style.backgroundColor = "#E0F7FA"; // Reset bg color
             jarContainers.forEach(jc => jc.classList.remove('selected'));
             showMessage("Tap a jar to start pouring!");
+            stepCountDisplay.innerText = "0";
+            timerDisplay.innerText = "0:00";
+            undoBtn.disabled = true;
             updateView();
         }
 
