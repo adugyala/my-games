@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>River Crossing Puzzle</title>
+    <style>
+        :root {
+            --bg-color: #E0F7FA;
+            --text-color: #006064;
+            --grass-color: #81C784;
+            --water-color: #4FC3F7;
+            --boat-color: #795548;
+            --danger-color: #D32F2F;
+            --success-color: #388E3C;
+        }
+
+        body {
+            font-family: 'Comic Sans MS', 'Arial Rounded MT Bold', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+        }
+
+        h1 { margin-bottom: 5px; font-size: 1.8rem;}
+        
+        .instructions {
+            background-color: white;
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            max-width: 600px;
+            text-align: center;
+            margin-bottom: 20px;
+            border: 2px solid var(--text-color);
+            font-size: 0.9rem;
+        }
+        .instructions strong { color: var(--danger-color); }
+
+        #game-message {
+            font-size: 1.1em;
+            font-weight: bold;
+            min-height: 1.4em;
+            color: #0056b3;
+            margin-bottom: 15px;
+            text-align: center;
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        /* --- Game Area Layout --- */
+        .game-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: stretch;
+            width: 100%;
+            max-width: 800px;
+            height: 350px;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            border: 4px solid #2E7D32;
+        }
+
+        .bank {
+            flex: 1;
+            background-color: var(--grass-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 15px;
+            position: relative;
+        }
+        .bank::after {
+             content: 'Bank';
+             position: absolute;
+             bottom: 10px;
+             font-weight: bold;
+             color: #1B5E20;
+             opacity: 0.6;
+        }
+
+        .river {
+            flex: 2;
+            background-color: var(--water-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.2) 10px, rgba(255,255,255,0.2) 20px);
+        }
+
+        /* --- The Boat --- */
+        .boat-container {
+            position: absolute;
+            top: 30%; /* Position boat in middle of river vertically */
+            left: 5px; /* Start at left bank */
+            transition: left 0.8s ease-in-out;
+            z-index: 10;
+        }
+        
+        /* When boat moves to right */
+        .boat-container.at-right {
+            left: calc(100% - 125px); /* 100% minus boat width + margin */
+        }
+
+        .boat {
+            width: 120px;
+            height: 60px;
+            background-color: var(--boat-color);
+            border-radius: 10px 10px 50px 50px;
+            border: 4px solid #4E342E;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 5px;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+        }
+        .boat::after {
+            content: 'Boat (Max 2)';
+            position: absolute;
+            bottom: -25px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.8rem;
+            color: white;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        /* --- Game Items (Characters) --- */
+        .item {
+            font-size: 3rem;
+            cursor: pointer;
+            transition: transform 0.1s;
+            filter: drop-shadow(0 3px 3px rgba(0,0,0,0.2));
+            user-select: none;
+        }
+        .item:hover { transform: scale(1.1); }
+        .item:active { transform: scale(0.9); }
+        
+        /* Smaller items when inside the boat */
+        .boat .item { font-size: 2.5rem; }
+
+        #row-button {
+            margin-top: 100px; /* push below boat */
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background-color: #FFC107;
+            border: 3px solid #F57C00;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px #F57C00;
+            font-family: inherit;
+        }
+        #row-button:active { box-shadow: 0 2px #F57C00; transform: translateY(2px); }
+        #row-button:disabled { opacity: 0.6; cursor: not-allowed; filter: grayscale(1);}
+
+        #reset-btn {
+            margin-top: 20px;
+            padding: 10px 25px;
+            background-color: var(--text-color);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        @media (max-width: 600px) {
+            .game-area { height: 300px; }
+            .item { font-size: 2.5rem; }
+            .boat { width: 100px; height: 50px; }
+            .boat-container.at-right { left: calc(100% - 105px); }
+             #row-button { margin-top: 130px; padding: 10px 20px; font-size: 1rem;}
+        }
+    </style>
+</head>
+<body>
+
+    <h2>🛶 River Crossing Challenge 🐺🐐🥬</h2>
+
+    <div class="instructions">
+        <p>Goal: Get everyone to the Right Bank!</p>
+        <p>Rules: 
+        1. The boat holds <b>2 things</b>. 
+        2. The 👨‍🌾 Farmer must be in the boat to row.
+        <br><strong>Danger:</strong> Don't leave Wolf alone with Goat, or Goat alone with Cabbage!</p>
+    </div>
+
+    <div id="game-message">Tap items to load the boat.</div>
+
+    <div class="game-area">
+        <div class="bank left-bank" id="left-bank-cont">
+            </div>
+
+        <div class="river">
+            <div class="boat-container" id="boat-mover">
+                <div class="boat" id="boat-cont">
+                    </div>
+            </div>
+            <button id="row-button" onclick="rowBoat()">Row Boat ➡️</button>
+        </div>
+
+        <div class="bank right-bank" id="right-bank-cont">
+            </div>
+    </div>
+
+    <button id="reset-btn" onclick="resetGame()">Reset Game 🔄</button>
+
+    <script>
+        // === Game State Data ===
+        const CHARS = {
+            farmer: '👨‍🌾',
+            wolf: '🐺',
+            goat: '🐐',
+            cabbage: '🥬'
+        };
+
+        // Where is everyone located?
+        let gameState = {
+            left: ['farmer', 'wolf', 'goat', 'cabbage'],
+            right: [],
+            boat: [],
+            boatLocation: 'left', // 'left' or 'right'
+            isGameOver: false
+        };
+
+        // === DOM elements ===
+        const leftCont = document.getElementById('left-bank-cont');
+        const rightCont = document.getElementById('right-bank-cont');
+        const boatCont = document.getElementById('boat-cont');
+        const boatMover = document.getElementById('boat-mover');
+        const msgDisplay = document.getElementById('game-message');
+        const rowBtn = document.getElementById('row-button');
+
+        // === Core Logic ===
+
+        // Handle taping an item (Wolf, Goat, etc.)
+        function handleItemClick(itemKey, currentLocation) {
+            if (gameState.isGameOver) return;
+
+            // 1. Moving from Bank TO Boat
+            if (currentLocation === gameState.boatLocation) {
+                if (gameState.boat.length >= 2) {
+                    showMessage("The boat is full! (Max 2)", true);
+                    return;
+                }
+                // Remove from bank, add to boat
+                gameState[currentLocation] = gameState[currentLocation].filter(i => i !== itemKey);
+                gameState.boat.push(itemKey);
+            
+            // 2. Moving FROM Boat TO Bank
+            } else if (currentLocation === 'boat') {
+                // Remove from boat, add to current bank side
+                gameState.boat = gameState.boat.filter(i => i !== itemKey);
+                gameState[gameState.boatLocation].push(itemKey);
+            }
+
+            updateView();
+            showMessage("Load the boat, then click 'Row Boat'.");
+        }
+
+
+        function rowBoat() {
+            if (gameState.isGameOver) return;
+
+            // Rule: Farmer must be in boat
+            if (!gameState.boat.includes('farmer')) {
+                showMessage("The Farmer 👨‍🌾 must be in the boat to row!", true);
+                return;
+            }
+
+            // Move the boat
+            gameState.boatLocation = (gameState.boatLocation === 'left') ? 'right' : 'left';
+            updateView(); // Update visuals immediately for animation
+
+            // Check rules AFTER arriving at the other side
+            // We need to check the bank the farmer just LEFT.
+            const bankToCheck = (gameState.boatLocation === 'left') ? 'right' : 'left';
+            checkDanger(bankToCheck);
+
+            if(!gameState.isGameOver) {
+                checkWinCondition();
+            }
+
+            if(!gameState.isGameOver) {
+                 const arrow = gameState.boatLocation === 'left' ? '➡️' : '⬅️';
+                 rowBtn.innerText = `Row Boat ${arrow}`;
+                 showMessage(`Arrived at ${gameState.boatLocation} bank. Unload?`);
+            }
+        }
+
+        // Logic to check if someone got eaten
+        function checkDanger(bankSide) {
+            const itemsOnBank = gameState[bankSide];
+            const hasFarmer = itemsOnBank.includes('farmer');
+            const hasWolf = itemsOnBank.includes('wolf');
+            const hasGoat = itemsOnBank.includes('goat');
+            const hasCabbage = itemsOnBank.includes('cabbage');
+
+            // Danger only happens if Farmer is NOT there
+            if (!hasFarmer) {
+                if (hasWolf && hasGoat) {
+                    endGame("Oh no! The Wolf 🐺 ate the Goat 🐐 while the farmer was away!", false);
+                } else if (hasGoat && hasCabbage) {
+                    endGame("Oh no! The Goat 🐐 ate the Cabbage 🥬 while the farmer was away!", false);
+                }
+            }
+        }
+
+        function checkWinCondition() {
+            // If everyone is on the right bank (boat must be empty too, or on right side unloaded)
+            // Simpler check: if 4 items are on the right.
+            if (gameState.right.length === 4) {
+                 endGame("🎉 YOU DID IT! Everyone crossed safely! 🎉", true);
+            }
+        }
+
+        function endGame(msg, won) {
+            gameState.isGameOver = true;
+            showMessage(msg, !won);
+            if (won) {
+                msgDisplay.style.backgroundColor = "#C8E6C9";
+                rowBtn.style.display = 'none';
+            } else {
+                msgDisplay.style.backgroundColor = "#FFCDD2";
+            }
+        }
+
+
+        // === View/Rendering Functions ===
+
+        function showMessage(msg, isError = false) {
+            msgDisplay.innerText = msg;
+            msgDisplay.style.color = isError ? "#D32F2F" : "#0056b3";
+        }
+
+        // Creates the HTML for a character emoji
+        function createItemElement(itemKey, locationType) {
+            const el = document.createElement('div');
+            el.classList.add('item');
+            el.innerText = CHARS[itemKey];
+            el.onclick = () => handleItemClick(itemKey, locationType);
+            return el;
+        }
+
+        // Redraws the entire game based on the current State
+        function updateView() {
+            // Clear current view
+            leftCont.innerHTML = '';
+            rightCont.innerHTML = '';
+            boatCont.innerHTML = '';
+
+            // Populate Left Bank
+            gameState.left.forEach(item => leftCont.appendChild(createItemElement(item, 'left')));
+            // Populate Right Bank
+            gameState.right.forEach(item => rightCont.appendChild(createItemElement(item, 'right')));
+            // Populate Boat
+            gameState.boat.forEach(item => boatCont.appendChild(createItemElement(item, 'boat')));
+
+            // Move Boat Visually
+            if (gameState.boatLocation === 'right') {
+                boatMover.classList.add('at-right');
+            } else {
+                boatMover.classList.remove('at-right');
+            }
+            
+            // Update Button State
+            rowBtn.disabled = gameState.isGameOver;
+        }
+
+        function resetGame() {
+            gameState = {
+                left: ['farmer', 'wolf', 'goat', 'cabbage'],
+                right: [],
+                boat: [],
+                boatLocation: 'left',
+                isGameOver: false
+            };
+            msgDisplay.style.backgroundColor = "transparent";
+            rowBtn.innerText = "Row Boat ➡️";
+            rowBtn.style.display = "inline-block";
+            showMessage("Game Reset. Tap items to load boat.");
+            updateView();
+        }
+
+        // Initialize
+        resetGame();
+
+    </script>
+</body>
+</html>
